@@ -112,6 +112,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    suspend fun deleteSmbVideo(video: VideoInfo): Result<Boolean> = withContext(Dispatchers.IO) {
+        if (video.source != VideoSource.SAMBA || video.serverId <= 0) {
+            return@withContext Result.failure(IllegalArgumentException("Not an SMB video"))
+        }
+        repository.deleteSmbVideo(video.serverId, video.path)
+    }
+
     suspend fun getVideoRotation(path: String): Int = withContext(Dispatchers.IO) {
         val prefs = getApplication<Application>().getSharedPreferences("video_rotation", Context.MODE_PRIVATE)
         prefs.getInt(path, 0).floorMod360()

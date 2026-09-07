@@ -85,7 +85,11 @@ class SambaClient {
     }
 
     /**
-     * List all folders/shares on a server.
+     * List the immediate child folders of the current SMB directory.
+     *
+     * Folder browsing is intentionally shallow: callers can enter a folder
+     * and request the next level. This avoids recursively probing every child
+     * directory and allows arbitrarily deep shares to be browsed.
      */
     suspend fun listFolders(server: SambaServer, folderPath: String = ""): Result<List<VideoFolder>> =
         withContext(Dispatchers.IO) {
@@ -100,19 +104,18 @@ class SambaClient {
                 val folders = entries
                     .filter { it.isDirectory }
                     .map { dir ->
-                        val videoFiles = dir.listFiles()
-                            ?.filter { isVideoFile(it.name) }
-                            ?: emptyList()
-
                         VideoFolder(
                             path = dir.path,
                             name = dir.name,
-                            videoCount = videoFiles.size,
-                            thumbnailPath = videoFiles.firstOrNull()?.path ?: "",
+                            // The count would require opening every child
+                            // directory. It is unknown until that folder is opened.
+                            videoCount = 0,
+                            thumbnailPath = "",
                             source = VideoSource.SAMBA,
                             serverId = server.id
                         )
                     }
+                    .sortedBy { it.name.lowercase() }
 
                 Result.success(folders)
             } catch (e: Exception) {
@@ -218,6 +221,17 @@ class SambaClient {
             val ctx = createContext(server) ?: return Result.failure(IllegalStateException("SMB context failed"))
             val file = SmbFile(if (remotePath.endsWith("/")) remotePath else "$remotePath/", ctx)
             file.delete()
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Delete one remote SMB file without converting its path to a directory. */
+    fun deleteFile(server: SambaServer, remotePath: String): Result<Boolean> {
+        return try {
+            val ctx = createContext(server) ?: return Result.failure(IllegalStateException("SMB context failed"))
+            SmbFile(remotePath.removeSuffix("/"), ctx).delete()
             Result.success(true)
         } catch (e: Exception) {
             Result.failure(e)

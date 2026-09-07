@@ -166,6 +166,12 @@ class VideoRepository(private val context: Context) {
         sambaClient.deletePath(server, remotePath).getOrDefault(false)
     }
 
+    suspend fun deleteSmbVideo(serverId: Long, remotePath: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        val server = getSambaServer(serverId)
+            ?: return@withContext Result.failure(IllegalArgumentException("Samba server not found: $serverId"))
+        sambaClient.deleteFile(server, remotePath)
+    }
+
     // ─── Playback Progress ────────────────────────────────────
 
     suspend fun getPlaybackProgress(path: String): Long {

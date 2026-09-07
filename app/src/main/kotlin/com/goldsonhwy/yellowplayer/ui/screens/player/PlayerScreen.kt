@@ -272,22 +272,42 @@ fun PlayerScreen(
         }
     }
 
+    fun removeCurrentVideoFromPlaylist(video: com.goldsonhwy.yellowplayer.data.model.VideoInfo) {
+        deletedPaths = deletedPaths + video.path
+        val nextSize = videos.size - 1
+        currentIndex = when {
+            nextSize <= 0 -> 0
+            currentIndex >= nextSize -> nextSize - 1
+            else -> currentIndex
+        }
+    }
+
     fun deleteCurrentVideo() {
         val video = videos.getOrNull(currentIndex) ?: return
-        if (source != VideoSource.LOCAL) {
-            Toast.makeText(context, "当前仅支持删除本地文件", Toast.LENGTH_SHORT).show()
+        if (source == VideoSource.SAMBA) {
+            player.stop()
+            scope.launch {
+                val result = viewModel.deleteSmbVideo(video)
+                result.fold(
+                    onSuccess = {
+                        removeCurrentVideoFromPlaylist(video)
+                    },
+                    onFailure = { error ->
+                        Toast.makeText(context, "删除失败：${error.message.orEmpty()}", Toast.LENGTH_LONG).show()
+                        player.prepare()
+                        player.playWhenReady = true
+                    }
+                )
+            }
             return
         }
         try {
             val file = File(video.path)
-            file.delete()
-            deletedPaths = deletedPaths + video.path
-            val nextSize = videos.size - 1
-            currentIndex = when {
-                nextSize <= 0 -> 0
-                currentIndex >= nextSize -> nextSize - 1
-                else -> currentIndex
+            if (!file.delete()) {
+                Toast.makeText(context, "删除失败：文件不存在或无法删除", Toast.LENGTH_LONG).show()
+                return
             }
+            removeCurrentVideoFromPlaylist(video)
         } catch (t: Throwable) {
             Toast.makeText(context, "删除失败：${t.message}", Toast.LENGTH_LONG).show()
         }

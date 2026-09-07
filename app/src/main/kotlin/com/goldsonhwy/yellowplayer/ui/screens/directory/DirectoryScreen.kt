@@ -295,8 +295,9 @@ fun DirectoryScreen(
                 }
             }
 
-            // Folder grid (root level)
-            !uiState.isSingleFolder && uiState.folders.isNotEmpty() -> {
+            // SMB folders and files share one level. Opening a folder pushes
+            // another browse route, so this works at any depth.
+            uiState.folders.isNotEmpty() || uiState.videos.isNotEmpty() -> {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(gridColumns),
                     modifier = Modifier
@@ -308,6 +309,12 @@ fun DirectoryScreen(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                     contentPadding = PaddingValues(vertical = 4.dp)
                 ) {
+                    if (moveProgressText.isNotEmpty()) {
+                        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                            Text(moveProgressText, color = Yellow500, modifier = Modifier.padding(8.dp), fontSize = 13.sp)
+                        }
+                    }
+
                     items(sortedFolders, key = { it.path }) { folder ->
                         VideoFolderCard(
                             folder = folder,
@@ -329,37 +336,12 @@ fun DirectoryScreen(
                                         Routes.sambaBrowse(folder.serverId.takeIf { it > 0 } ?: serverId, folder.path)
                                     )
                                 } else {
-                                    // Open the folder grid first. Older builds jumped directly
-                                    // to PlayerScreen with a folder path, which could crash or
-                                    // show mock videos instead of the real file list.
-                                    navController.navigate(
-                                        Routes.directory(source, folder.path)
-                                    )
+                                    navController.navigate(Routes.directory(source, folder.path))
                                 }
                             }
                         )
                     }
-                }
-            }
 
-            // Video grid (inside a folder)
-            uiState.isSingleFolder && uiState.videos.isNotEmpty() -> {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(gridColumns),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .padding(horizontal = 4.dp),
-                    state = gridState,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp)
-                ) {
-                    if (moveProgressText.isNotEmpty()) {
-                        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                            Text(moveProgressText, color = Yellow500, modifier = Modifier.padding(8.dp), fontSize = 13.sp)
-                        }
-                    }
                     items(sortedVideos, key = { it.path }) { video ->
                         VideoThumbnailCard(
                             video = video,
@@ -542,7 +524,7 @@ private fun VideoFolderCard(
                 color = Color.Black.copy(alpha = 0.7f)
             ) {
                 Text(
-                    text = "${folder.videoCount}",
+                    text = if (folder.source == VideoSource.SAMBA) "目录" else "${folder.videoCount}",
                     color = Color.White,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
